@@ -186,139 +186,77 @@ end
 function Whispr.Chat:CreateNewConversationPrompt()
     if Whispr.Chat.newConversationFrame then
         Whispr.Chat.newConversationFrame:Show()
+        Whispr.Chat.newConversationFrame.nameBox:SetFocus()
         return
     end
 
-    local prompt = CreateFrame("Frame", "WhisprNewConversationFrame", UIParent, "BackdropTemplate")
-    prompt:SetSize(400, 180)
-    prompt:SetPoint("CENTER", frame, "CENTER")
-    
-    -- Modern styling with golden border like WoW dialogs
+    local parent = Whispr.Chat.frame or UIParent
+
+    local prompt = CreateFrame("Frame", "WhisprNewConversationPrompt", parent, "BackdropTemplate")
+    prompt:SetSize(280, 120)
+    prompt:SetPoint("CENTER", parent, "CENTER")
     prompt:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        tile = true, tileSize = 32, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
     })
-    prompt:SetBackdropColor(0.0, 0.0, 0.0, 0.85)
-    prompt:SetBackdropBorderColor(1, 0.8, 0, 1) -- Golden border
+    prompt:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
     prompt:SetFrameStrata("FULLSCREEN_DIALOG")
-    
-    -- Subtle glow effect with golden tint
-    local glow = prompt:CreateTexture(nil, "BACKGROUND", nil, -1)
-    glow:SetTexture("Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu-Option")
-    glow:SetPoint("TOPLEFT", -20, 20)
-    glow:SetPoint("BOTTOMRIGHT", 20, -20)
-    glow:SetVertexColor(1, 0.8, 0.2, 0.3) -- Golden glow
+    prompt:SetMovable(true)
+    prompt:EnableMouse(true)
+    prompt:RegisterForDrag("LeftButton")
+    prompt:SetScript("OnDragStart", prompt.StartMoving)
+    prompt:SetScript("OnDragStop", prompt.StopMovingOrSizing)
 
-    -- Icon next to title
-    local icon = prompt:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat")
-    icon:SetSize(20, 20)
-    icon:SetPoint("TOP", 0, -15)
-
+    -- Title
     local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", icon, "BOTTOM", 0, -5)
-    title:SetText("Start New Conversation")
-    title:SetTextColor(1, 1, 1, 1)
+    title:SetPoint("TOP", 0, -12)
+    title:SetText("New Conversation")
 
-    -- Enhanced input box
+    -- Input box
     local nameBox = CreateFrame("EditBox", nil, prompt, "InputBoxTemplate")
-    nameBox:SetSize(300, 32)
-    nameBox:SetPoint("TOP", title, "BOTTOM", 0, -15)
+    nameBox:SetSize(200, 30)
+    nameBox:SetPoint("TOP", title, "BOTTOM", 0, -10)
     nameBox:SetAutoFocus(true)
     nameBox:SetMaxLetters(50)
-    nameBox:SetTextInsets(10, 10, 0, 0)
-    nameBox:SetFontObject("GameFontHighlight")
-    
-    -- Placeholder text
-    nameBox.placeholder = "Enter player name..."
-    nameBox:SetText(nameBox.placeholder)
-    nameBox:SetTextColor(0.6, 0.6, 0.6)
-    
-    -- Create dropdown for suggestions
-    local dropdown = self:CreateDropdown(prompt, nameBox)
-    
-    -- Placeholder text handling
-    nameBox:SetScript("OnEditFocusGained", function(self)
-        if self:GetText() == self.placeholder then
-            self:SetText("")
-            self:SetTextColor(1, 1, 1)
-        end
-        dropdown:Hide()
-    end)
-    
-    nameBox:SetScript("OnEditFocusLost", function(self)
-        if self:GetText() == "" then
-            self:SetText(self.placeholder)
-            self:SetTextColor(0.6, 0.6, 0.6)
-        end
-        -- Hide dropdown after a short delay
-        C_Timer.After(0.1, function()
-            if dropdown and not dropdown:IsMouseOver() then
-                dropdown:Hide()
-            end
-        end)
-    end)
-    
-    -- Text changed handler for autocomplete
-    nameBox:SetScript("OnTextChanged", function(self)
-        local text = self:GetText()
-        if text == self.placeholder or text == "" or string.len(text) < 2 then
-            dropdown:Hide()
-            return
-        end
-        
-        local suggestions = Whispr.Chat:GetPlayerSuggestions(text)
-        dropdown:UpdateSuggestions(suggestions)
-    end)
-    
-    -- Function to start conversation (shared between button and enter key)
-    local function startConversation()
-        local name = nameBox:GetText()
-        if name and name ~= "" and name ~= nameBox.placeholder then
-            -- Add realm if not specified and we're on retail
-            if not string.find(name, "-") and GetRealmName() then
-                name = name .. "-" .. GetRealmName()
-            end
-            
-            if not Whispr.Messages.conversations[name] then
-                Whispr.Messages.conversations[name] = {}
-            end
-            Whispr.Messages:SetTarget(name)
-            Whispr.Contacts:UpdateSidebar()
+    nameBox:SetText("")
+    nameBox:SetFocus()
+    prompt.nameBox = nameBox
+
+    -- Buttons
+    local startButton = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    startButton:SetSize(80, 24)
+    startButton:SetPoint("BOTTOMLEFT", 20, 15)
+    startButton:SetText("Start")
+
+    local cancelButton = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    cancelButton:SetSize(80, 24)
+    cancelButton:SetPoint("BOTTOMRIGHT", -20, 15)
+    cancelButton:SetText("Cancel")
+
+    startButton:SetScript("OnClick", function()
+        local targetName = nameBox:GetText():gsub("%s+", "")
+        if targetName ~= "" then
+            Whispr.Messages:AddConversation(targetName)
+            Whispr.Messages:SetTarget(targetName)
+            Whispr.Messages:LoadConversation(targetName)
+            Whispr.Chat:HighlightSelectedContact(targetName)
             prompt:Hide()
+        else
+            UIErrorsFrame:AddMessage("Please enter a player name.", 1, 0.2, 0.2)
         end
-    end
-    
-    -- Handle Enter key press
-    nameBox:SetScript("OnEnterPressed", startConversation)
+    end)
 
-    -- Enhanced buttons
-    local confirm = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
-    confirm:SetSize(100, 26)
-    confirm:SetPoint("BOTTOMRIGHT", -15, 15)
-    confirm:SetText("Start Chat")
-    
-    -- Better button styling
-    confirm:SetNormalTexture("Interface\\Buttons\\UI-Panel-Button-Up")
-    confirm:SetHighlightTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
-    confirm:SetPushedTexture("Interface\\Buttons\\UI-Panel-Button-Down")
-
-    local cancel = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
-    cancel:SetSize(80, 26)
-    cancel:SetPoint("BOTTOMLEFT", 15, 15)
-    cancel:SetText("Cancel")
-
-    confirm:SetScript("OnClick", startConversation)
-
-    cancel:SetScript("OnClick", function()
+    cancelButton:SetScript("OnClick", function()
         prompt:Hide()
     end)
 
-    -- Register ESC key handling for this frame
-    table.insert(UISpecialFrames, "WhisprNewConversationFrame")
-    
+    -- Enter key support
+    nameBox:SetScript("OnEnterPressed", function()
+        startButton:Click()
+    end)
+
     Whispr.Chat.newConversationFrame = prompt
 end
 
@@ -334,32 +272,27 @@ function Whispr.Chat:Create()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetTitle("Whispr Chat")
-    
-    -- Register ESC key handling for main frame
     table.insert(UISpecialFrames, "WhisprChatWindow")
-
+    Whispr:AddAutoTransparency(frame, {
+        normalAlpha = 1.0,
+        unfocusedAlpha = 0.4,
+        fadeSpeed = 5,
+        checkMovement = true
+    })
     local sidebarFrame = CreateFrame("Frame", nil, frame, "InsetFrameTemplate3")
     sidebarFrame:SetPoint("TOPLEFT", 4, -28)
     sidebarFrame:SetPoint("BOTTOMLEFT", 4, 4)
     sidebarFrame:SetWidth(200)
-
-    -- New conversation button with better positioning
     local newConversationButton = CreateFrame("Button", nil, sidebarFrame, "BackdropTemplate")
     newConversationButton:SetSize(30, 30)
     newConversationButton:SetPoint("TOPLEFT", 148, -8)
-
-    -- Use a more appropriate icon
     local plusTexture = "Interface\\FriendsFrame\\UI-Toast-FriendRequestIcon"
     local bg = newConversationButton:CreateTexture(nil, "ARTWORK")
     bg:SetAllPoints()
     bg:SetTexture(plusTexture)
-
-    -- Make the button functional
     newConversationButton:SetScript("OnClick", function()
         Whispr.Chat:CreateNewConversationPrompt()
     end)
-
-    -- Enhanced hover effects
     newConversationButton:SetScript("OnEnter", function(self)
         if bg then
             bg:SetVertexColor(1.3, 1.3, 1.3, 1)
@@ -369,27 +302,22 @@ function Whispr.Chat:Create()
         GameTooltip:AddLine("Click to open chat with a new player", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
-
     newConversationButton:SetScript("OnLeave", function(self)
         if bg then
             bg:SetVertexColor(1, 1, 1, 1)
         end
         GameTooltip:Hide()
     end)
-
-    -- Add pressed effect
     newConversationButton:SetScript("OnMouseDown", function(self)
         if bg then
             bg:SetVertexColor(0.7, 0.7, 0.7, 1)
         end
     end)
-
     newConversationButton:SetScript("OnMouseUp", function(self)
         if bg then
             bg:SetVertexColor(1, 1, 1, 1)
         end
     end)
-
     local searchBox = CreateFrame("EditBox", nil, sidebarFrame, "InputBoxTemplate")
     searchBox:SetSize(160, 20)
     searchBox:SetPoint("TOPLEFT", 15, -40)
@@ -399,65 +327,56 @@ function Whispr.Chat:Create()
     searchBox:SetText("Search...")
     searchBox:SetTextColor(0.5, 0.5, 0.5)
     Whispr.Chat.searchBox = searchBox
-
-    -- Scrollable contact list frame
     local contactScroll = CreateFrame("ScrollFrame", nil, sidebarFrame)
     contactScroll:SetPoint("TOPLEFT", 4, -90)
     contactScroll:SetPoint("BOTTOMRIGHT", -28, 4)
-
     contactScroll.scrollBarTemplate = "MinimalScrollBar"
     contactScroll.scrollBarX = 12
     contactScroll.scrollBarTopY = 0
     contactScroll.scrollBarBottomY = 0
     ScrollFrame_OnLoad(contactScroll)
-
     local contactList = CreateFrame("Frame", nil, contactScroll)
     contactList:SetSize(1, 1)
     contactScroll:SetScrollChild(contactList)
     Whispr.Chat.contactList = contactList
-
-    -- Chat area
     chatArea = CreateFrame("Frame", nil, frame, "InsetFrameTemplate3")
     chatArea:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 2, 0)
     chatArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 44)
-
     chatArea.titleBar = CreateFrame("Frame", nil, chatArea)
     chatArea.titleBar:SetPoint("TOPLEFT", 0, 0)
     chatArea.titleBar:SetPoint("TOPRIGHT", 0, 0)
     chatArea.titleBar:SetHeight(24)
-
     chatArea.titleText = chatArea.titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chatArea.titleText:SetPoint("LEFT", 10, 0)
     chatArea.titleText:SetText("No conversation selected")
-
     chatArea.scroll = CreateFrame("ScrollingMessageFrame", nil, chatArea)
+    chatArea.scroll.fontSize = Whispr.Chat.savedFontSize or 13
+    chatArea.scroll.minFontSize = 8
+    chatArea.scroll.maxFontSize = 24
     chatArea.scroll:SetPoint("TOPLEFT", 10, -30)
     chatArea.scroll:SetPoint("BOTTOMRIGHT", -30, 10)
-
-    chatArea.scroll:SetFontObject(GameFontHighlightSmall)
+    chatArea.scroll:SetFont("Fonts\\FRIZQT__.TTF", chatArea.scroll.fontSize, "")
+    chatArea.scroll:SetShadowColor(0, 0, 0, 0.8)
+    chatArea.scroll:SetShadowOffset(1, -1)
     chatArea.scroll:SetFading(false)
     chatArea.scroll:SetMaxLines(500)
     chatArea.scroll:SetJustifyH("LEFT")
     chatArea.scroll:SetIndentedWordWrap(true)
     chatArea.scroll:SetHyperlinksEnabled(true)
-
+    chatArea.scroll:SetSpacing(4)
     chatArea.scroll:SetScript("OnHyperlinkEnter", function(_, link)
         GameTooltip:SetOwner(chatArea.scroll, "ANCHOR_CURSOR")
         GameTooltip:SetHyperlink(link)
         GameTooltip:Show()
     end)
-
     chatArea.scroll:SetScript("OnHyperlinkLeave", function()
         GameTooltip:Hide()
     end)
-
     chatArea.scroll:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
-
     chatArea.scroll.scrollBarTemplate = "MinimalScrollBar"
     chatArea.scroll.scrollBarX = 12
     chatArea.scroll.scrollBarTopY = 0
     chatArea.scroll.scrollBarBottomY = 0
-
     chatArea.scroll:EnableMouseWheel(true)
     chatArea.scroll:SetScript("OnMouseWheel", function(self, delta)
         if delta > 0 then
@@ -466,58 +385,90 @@ function Whispr.Chat:Create()
             self:ScrollDown()
         end
     end)
-
-    -- Input box
+    chatArea.scroll:SetScript("OnMouseWheel", function(self, delta)
+        if IsControlKeyDown() then
+            if delta > 0 then
+                self.fontSize = math.min(self.fontSize + 1, self.maxFontSize)
+            else
+                self.fontSize = math.max(self.fontSize - 1, self.minFontSize)
+            end
+            self:SetFont("Fonts\\FRIZQT__.TTF", self.fontSize, "")
+            if Whispr.History then
+                Whispr.History:SaveFontSize(self.fontSize)
+            end
+        else
+            if delta > 0 then
+                self:ScrollUp()
+            elseif delta < 0 then
+                self:ScrollDown()
+            end
+        end
+    end)
     inputBox = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
     inputBox:SetAutoFocus(false)
     inputBox:SetSize(460, 24)
     inputBox:SetMaxLetters(255)
     inputBox:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 220, 10)
-
     local charCount = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     charCount:SetPoint("LEFT", inputBox, "RIGHT", 8, 0)
     charCount:SetText("0/255")
-
     inputBox:SetScript("OnTextChanged", function(self)
         local len = self:GetNumLetters()
         charCount:SetText(len .. "/255")
     end)
-
     inputBox:SetScript("OnEnterPressed", function(self)
         local text = self:GetText()
         if Whispr.Messages.target and text ~= "" then
-            SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
-            table.insert(Whispr.Messages.conversations[Whispr.Messages.target], {
-                sender = UnitName("player"),
-                text = text,
-                fromPlayer = true,
-                timestamp = date("%H:%M")
-            })
-            Whispr.Messages:LoadConversation(Whispr.Messages.target)
+            if Whispr.Queue and not Whispr.Queue:IsPlayerOnline(Whispr.Messages.target) then
+                StaticPopupDialogs["WHISPR_QUEUE_OFFLINE"] = {
+                    text = Whispr.Messages.target:match("^[^-]+") .. " is offline. Queue this message to send when they come online?",
+                    button1 = "Queue",
+                    button2 = "Cancel",
+                    OnAccept = function()
+                        Whispr.Queue:QueueMessage(Whispr.Messages.target, text)
+                        if not Whispr.Messages.conversations[Whispr.Messages.target] then
+                            Whispr.Messages.conversations[Whispr.Messages.target] = {}
+                        end
+
+                        table.insert(Whispr.Messages.conversations[Whispr.Messages.target], {
+                            sender = UnitName("player"),
+                            text = text .. "",
+                            fromPlayer = true,
+                            timestamp = date("%H:%M"),
+                            isQueued = true
+                        })
+
+                        Whispr.Messages:SaveMessage()
+                        Whispr.Messages:LoadConversation(Whispr.Messages.target)
+                    end,
+                    timeout = 0,
+                    whileDead = true,
+                    hideOnEscape = true,
+                    preferredIndex = 3,
+                }
+                StaticPopup_Show("WHISPR_QUEUE_OFFLINE")
+            else
+                SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
+            end
         end
         self:SetText("")
         self:ClearFocus()
     end)
-
     searchBox:SetScript("OnEditFocusGained", function(self)
         if self:GetText() == "Search..." then
             self:SetText("")
             self:SetTextColor(1, 1, 1)
         end
     end)
-
     searchBox:SetScript("OnEditFocusLost", function(self)
         if self:GetText() == "" then
             self:SetText("Search...")
             self:SetTextColor(0.5, 0.5, 0.5)
         end
     end)
-
     searchBox:SetScript("OnTextChanged", function()
         Whispr.Contacts:UpdateSidebar()
     end)
-
-    -- Add TAB key binding for focusing input box
     local function SetupTabBinding()
         if not Whispr.Chat.tabBindingSet then
             CreateFrame("Button", "WhisprTabBind", frame):SetScript("OnClick", function()
@@ -530,20 +481,22 @@ function Whispr.Chat:Create()
             Whispr.Chat.tabBindingSet = true
         end
     end
-    
     frame:SetScript("OnShow", function()
         SetupTabBinding()
     end)
-    
     frame:SetScript("OnHide", function()
+        if Whispr.Messages then
+            Whispr.Messages.target = nil
+        end
         if Whispr.Chat.tabBindingSet then
             SetBinding("TAB")
             Whispr.Chat.tabBindingSet = false
         end
     end)
-
-    -- Add global keybind handler for TAB when frame is shown
     local function OnUpdate(self, elapsed)
+        if self.UpdateTransparency then
+            self:UpdateTransparency(elapsed)
+        end
         if self:IsShown() and IsKeyDown("TAB") then
             if not self.tabPressed then
                 self.tabPressed = true
@@ -559,7 +512,6 @@ function Whispr.Chat:Create()
         end
     end
     frame:SetScript("OnUpdate", OnUpdate)
-
     Whispr.Contacts:UpdateSidebar()
 end
 

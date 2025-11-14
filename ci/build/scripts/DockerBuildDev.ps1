@@ -12,12 +12,13 @@ if (Test-Path .env) {
 
 $imageName = $args[0]
 $dockerFilePath = "./ci/build/Dockerfile"
-$projectDir = "/c/Users/Simon/workspaces/home-projects/Whispr"
+$projectDir = "/c/Users/simon/workspaces/home-projects/Whispr"
 $containerWorkDir = "/app"
 
 # Hardcoded path for wow_addons_dir
-$wowAddonsDir = "/d/World of Warcraft/_retail_/Interface/AddOns"
-$wowAddonsDirPtr = "/d/World of Warcraft/_xptr_/Interface/AddOns"
+# $wowAddonsDir = "/d/World of Warcraft/_retail_/Interface/AddOns"
+# $wowAddonsDirPtr = "/d/World of Warcraft/_xptr_/Interface/AddOns"
+$wowAddonsDir = "/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns"
 
 Write-Host "Building Docker image: $imageName"
 docker build -t $imageName -f $dockerFilePath .
