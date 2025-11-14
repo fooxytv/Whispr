@@ -408,7 +408,6 @@ function Whispr.Settings:ShowColorPicker(settingKey, textureToUpdate)
         ColorPickerFrame.cancelFunc = OnCancel
         ColorPickerFrame:Show()
     else
-        -- If no color picker is available, show a message
         print("Color picker not available")
     end
 end

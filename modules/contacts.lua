@@ -47,13 +47,89 @@ function Whispr.Contacts:GetRacePortrait(playerName)
     return portraits[(hash % #portraits) + 1]
 end
 
-function Whispr.Contacts:GetPlayerOnlineStatus(playerName)
+function Whispr.Contacts:GetPlayerClassInfo(playerName)
     local shortName = playerName:match("^[^-]+") or playerName
-    print("Checking status for:", playerName, "Short name:", shortName)
-    
-    -- Check Battle.net friends first
+    if WhisprDb.PlayerClasses and WhisprDb.playerClasses[playerName] then
+        return WhisprDb.playerClasses[playerName], nil
+    end
+    if UnitExists(shortName) then
+        local _, class = UnitClass(shortName)
+        if class then
+            if not WhisprDb.playerClasses then
+                WhisprDb.playerClasses = {}
+            end
+            WhisprDb.playerClasses[playerName] = class
+            return class, nil
+        end
+    end
     local numBNetFriends = BNGetNumFriends()
-    print("Number of Battle.net friends:", numBNetFriends)
+    for i = 1, numBNetFriends do
+        local accountInfo = C_BattleNet.GetFriendAccountInfo(i)
+        if accountInfo and accountInfo.gameAccountInfo then
+            local gameAccountInfo = accountInfo.gameAccountInfo
+            if gameAccountInfo.clientProgram == BNET_CLIENT_WOW then
+                local characterName = gameAccountInfo.characterName
+                if characterName then
+                    local bnetShortName = characterName:match("^[^-]+") or characterName
+                    if bnetShortName == shortName then
+                        local class = gameAccountInfo.className
+                        if class then
+                            if not WhisprDb.playerClasses then
+                                WhisprDb.playerClasses = {}
+                            end
+                            WhisprDb.playerClasses[playerName] = class
+                            return class, nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if IsInGuild() then
+        local numMembers = GetNumGuildMembers()
+        for i = 1, numMembers do
+            local name, _, _, _, class = GetGuildRosterInfo(i)
+            if name then
+                local guildShortName = name:match("^[^-]+") or name
+                if guildShortName == shortName then
+                    if not WhisprDb.playerClasses then
+                        WhisprDb.playerClasses = {}
+                    end
+                    WhisprDb.playerClasses[playerName] = class
+                    return class, nil
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+function Whispr.Contacts:GetClassColor(className)
+    if not className then
+        return 1, 1, 1
+    end
+    local classColors = {
+        ["WARRIOR"] = {0.78, 0.61, 0.43},
+        ["PALADIN"] = {0.96, 0.55, 0.73},
+        ["HUNTER"] = {0.67, 0.83, 0.45},
+        ["ROGUE"] = {1.00, 0.96, 0.41},
+        ["PRIEST"] = {1.00, 1.00, 1.00},
+        ["DEATHKNIGHT"] = {0.77, 0.12, 0.23},
+        ["SHAMAN"] = {0.00, 0.44, 0.87},
+        ["MAGE"] = {0.25, 0.78, 0.92},
+        ["WARLOCK"] = {0.53, 0.53, 0.93},
+        ["MONK"] = {0.00, 1.00, 0.59},
+        ["DRUID"] = {1.00, 0.49, 0.04},
+        ["DEMONHUNTER"] = {0.64, 0.19, 0.79},
+        ["EVOKER"] = {0.20, 0.58, 0.50},
+    }
+    return unpack(classColors[className:upper()] or {1, 1, 1})
+end
+
+
+function Whispr.Contacts:GetPlayerOnlineStatus(playerName)
+    local shortName = playerName:match("^[^-]+") or playerName    
+    local numBNetFriends = BNGetNumFriends()
     for i = 1, numBNetFriends do
         local accountInfo = C_BattleNet.GetFriendAccountInfo(i)
         if accountInfo and accountInfo.gameAccountInfo then
@@ -78,16 +154,12 @@ function Whispr.Contacts:GetPlayerOnlineStatus(playerName)
         end
     end
     
-    -- Check regular friends list (same as IsPlayerOnline)
     local numFriends = C_FriendList.GetNumFriends()
-    print("Number of friends:", numFriends)
     for i = 1, numFriends do
         local friendInfo = C_FriendList.GetFriendInfoByIndex(i)
         if friendInfo and friendInfo.name then
             local friendShortName = friendInfo.name:match("^[^-]+") or friendInfo.name
-            print("Checking friend:", friendInfo.name, "Short name:", friendShortName)
             if friendShortName == shortName then
-                print("Found friend match:", friendInfo.connected, "DND:", friendInfo.dnd, "AFK:", friendInfo.afk)
                 if friendInfo.connected then
                     if friendInfo.dnd then
                         return "dnd"
@@ -103,7 +175,6 @@ function Whispr.Contacts:GetPlayerOnlineStatus(playerName)
         end
     end
     
-    -- Check guild members (same as IsPlayerOnline)
     if IsInGuild() then
         local numMembers = GetNumGuildMembers()
         for i = 1, numMembers do
@@ -120,8 +191,7 @@ function Whispr.Contacts:GetPlayerOnlineStatus(playerName)
             end
         end
     end
-    print("No match found")
-    return nil -- Unknown status
+    return nil
 end
 
 function Whispr.Contacts:CreateSectionHeader(parent, title, yOffset, sectionKey)
@@ -129,49 +199,37 @@ function Whispr.Contacts:CreateSectionHeader(parent, title, yOffset, sectionKey)
     header:SetSize(180, 20)
     header:SetPoint("TOPLEFT", 0, yOffset)
     header:EnableMouse(true)
-
     header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    
-    -- Create a custom highlight with faded edges
     header.highlight = header:CreateTexture(nil, "HIGHLIGHT")
     header.highlight:SetAllPoints()
     header.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
     header.highlight:SetBlendMode("ADD")
-    
-    -- Create gradient textures for left and right fade
     header.leftFade = header:CreateTexture(nil, "HIGHLIGHT")
     header.leftFade:SetSize(20, 20)
     header.leftFade:SetPoint("LEFT")
     header.leftFade:SetColorTexture(0, 0, 0)
     header.leftFade:SetGradient("HORIZONTAL", 
-        CreateColor(0, 0, 0, 1),  -- Full black (transparent) on left
-        CreateColor(0, 0, 0, 0)   -- Fade to transparent
+        CreateColor(0, 0, 0, 1),
+        CreateColor(0, 0, 0, 0)
     )
     header.leftFade:SetBlendMode("BLEND")
-    
     header.rightFade = header:CreateTexture(nil, "HIGHLIGHT")
     header.rightFade:SetSize(20, 20)
     header.rightFade:SetPoint("RIGHT")
     header.rightFade:SetColorTexture(0, 0, 0)
     header.rightFade:SetGradient("HORIZONTAL",
-        CreateColor(0, 0, 0, 0),  -- Transparent on left
-        CreateColor(0, 0, 0, 1)   -- Fade to full black on right
+        CreateColor(0, 0, 0, 0),
+        CreateColor(0, 0, 0, 1)
     )
     header.rightFade:SetBlendMode("BLEND")
-    
     header:SetHighlightTexture(header.highlight)
-    
-    -- Expand/collapse arrow
     header.arrow = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     header.arrow:SetPoint("LEFT", 6, 0)
     header.arrow:SetTextColor(0.8, 0.8, 0.8, 1) 
-
-    -- Create the text FontString
     header.text = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     header.text:SetPoint("LEFT", header.arrow, "RIGHT", 4, 0)
     header.text:SetText(title)
     header.text:SetTextColor(1, 0.82, 0, 1) 
-
     local function UpdateArrow()
         if self.sectionStates[sectionKey] then
             header.arrow:SetText("-")
@@ -179,9 +237,7 @@ function Whispr.Contacts:CreateSectionHeader(parent, title, yOffset, sectionKey)
             header.arrow:SetText("+")
         end
     end
-
     UpdateArrow()
-    
     header:SetScript("OnClick", function(clickedSelf, button)
         if button == "LeftButton" then
             Whispr.Contacts.sectionStates[sectionKey] = not Whispr.Contacts.sectionStates[sectionKey]
@@ -194,7 +250,6 @@ function Whispr.Contacts:CreateSectionHeader(parent, title, yOffset, sectionKey)
             end
         end
     end)
-
     return header
 end
 
@@ -202,13 +257,13 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
     local contact = CreateFrame("Button", nil, parent)
     contact:SetSize(180, 28)
     contact:SetPoint("TOPLEFT", 0, yOffset)
-    contact.contactName = contactData.name -- Store for selection tracking
+    contact.contactName = contactData.name
     contact:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     contact.selectedHighlight = contact:CreateTexture(nil, "BACKGROUND")
     contact.selectedHighlight:SetAllPoints()
     contact.selectedHighlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
     contact.selectedHighlight:SetBlendMode("ADD")
-    contact.selectedHighlight:SetAlpha(0.5) -- Slightly dimmer than hover
+    contact.selectedHighlight:SetAlpha(0.5)
     contact.selectedHighlight:Hide()
     contact.portrait = contact:CreateTexture(nil, "ARTWORK")
     contact.portrait:SetSize(16, 16)
@@ -246,39 +301,34 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
         contact.unreadGlowLeftFade:SetPoint("LEFT", 0, 0)
         contact.unreadGlowLeftFade:SetTexture("Interface\\Buttons\\WHITE8x8")
         contact.unreadGlowLeftFade:SetGradient("HORIZONTAL",
-            CreateColor(0.7, 0.3, 0.9, 0.3),    -- Glow color on left
-            CreateColor(0.7, 0.3, 0.9, 0)       -- Fade to transparent
+            CreateColor(0.7, 0.3, 0.9, 0.3),
+            CreateColor(0.7, 0.3, 0.9, 0)
         )
-
         contact.unreadGlowRightFade = contact:CreateTexture(nil, "BACKGROUND", nil, 1)
         contact.unreadGlowRightFade:SetSize(30, 28)
         contact.unreadGlowRightFade:SetPoint("RIGHT", 0, 0)
         contact.unreadGlowRightFade:SetTexture("Interface\\Buttons\\WHITE8x8")
         contact.unreadGlowRightFade:SetGradient("HORIZONTAL",
-            CreateColor(0.7, 0.3, 0.9, 0),       -- Fade to transparent
-            CreateColor(0.7, 0.3, 0.9, 0.3)    -- Glow color on right
+            CreateColor(0.7, 0.3, 0.9, 0),
+            CreateColor(0.7, 0.3, 0.9, 0.3)
         )
-
         contact.unreadIndicator = contact:CreateTexture(nil, "OVERLAY")
         contact.unreadIndicator:SetSize(12, 12)
         contact.unreadIndicator:SetPoint("RIGHT", -13, 0)
         contact.unreadIndicator:SetTexture("Interface\\Minimap\\ObjectIcons")
         contact.unreadIndicator:SetTexCoord(0.125, 0.25, 0.125, 0.25)
-        
         if contactData.unreadCount and contactData.unreadCount > 0 then
             -- contact.unreadBadge = contact:CreateTexture(nil, "OVERLAY")
             -- contact.unreadBadge:SetSize(12, 12)
             -- contact.unreadBadge:SetPoint("TOPLEFT", contact.portrait, "TOPLEFT", 4, 4)
             -- contact.unreadBadge:SetTexture("Interface\\Store\\minimap-delivery-highlight")
             -- contact.unreadBadge:SetVertexColor(1, 0.3, 0.9, 1)
-
             contact.unreadText = contact:CreateFontString(nil, "OVERLAY")
             contact.unreadText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
             contact.unreadText:SetPoint("CENTER", contact.unreadBadge, "CENTER", -5, 0)
             contact.unreadText:SetText(tostring(contactData.unreadCount))
             contact.unreadText:SetTextColor(1, 1, 1, 1)
         end
-    
         contact.pulseTime = 0
         contact:SetScript("OnUpdate", function(self, elapsed)
             self.pulseTime = self.pulseTime + elapsed
@@ -288,7 +338,6 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
     else
         contact:SetScript("OnUpdate", nil)
     end
-
     contact:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     contact:SetScript("OnClick", function(self, button)
         if button == "LeftButton" then
@@ -298,8 +347,6 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
             Whispr.Contacts:ShowContextMenu(self, contactData)
         end
     end)
-    
-    -- Hover tooltip
     contact:SetScript("OnEnter", function(self)
         if contactData.lastMessage and contactData.lastMessage ~= "" then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -308,11 +355,9 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
             GameTooltip:Show()
         end
     end)
-    
     contact:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
     end)
-    
     return contact
 end
 
@@ -385,17 +430,6 @@ function Whispr.Contacts:UpdateSidebar()
                 date = messageDate,
                 unreadCount = unreadCount
             }
-
-            print("Contact:", shortName, "Unread Count:", unreadCount)
-            if unreadCount  > 0 then
-                print("UNREAD:", shortName, "Date:", messageDate, "Time:", timestamp, "Unread:", unreadCount)
-                print("Status", status)
-            else
-                print("READ:", shortName, "Date:", messageDate, "Time:", timestamp)
-                print("Status", status)
-            end
-
-            -- Check if contact belongs to a group
             local groupName = Whispr.History:GetContactGroup(name)
             if groupName and groupedContacts[groupName] then
                 table.insert(groupedContacts[groupName], contactData)
@@ -404,90 +438,42 @@ function Whispr.Contacts:UpdateSidebar()
             end
         end
     end
-
-    -- Sort function for contacts (unread at top, then by most recent timestamp)
     local function sortByTimestamp(a, b)
-        -- Both have unread - sort by most recent
         if a.unreadCount > 0 and b.unreadCount > 0 then
             local aDateTime = (a.date or "") .. " " .. (a.timestamp or "")
             local bDateTime = (b.date or "") .. " " .. (b.timestamp or "")
             return aDateTime > bDateTime
         end
-        
-        -- A has unread, B doesn't - A goes first
         if a.unreadCount > 0 and b.unreadCount == 0 then
             return true
         end
-        
-        -- B has unread, A doesn't - B goes first
         if a.unreadCount == 0 and b.unreadCount > 0 then
             return false
         end
-        
-        -- Both are read - sort by most recent timestamp
         local aDateTime = (a.date or "") .. " " .. (a.timestamp or "")
         local bDateTime = (b.date or "") .. " " .. (b.timestamp or "")
-        
-        -- Handle empty timestamps
         if aDateTime == " " and bDateTime ~= " " then
             return false
         elseif aDateTime ~= " " and bDateTime == " " then
             return true
         end
-        
         return aDateTime > bDateTime
     end
-
-    -- -- Sort function for contacts (unread first, then by timestamp, most recent first)
-    -- local function sortByTimestamp(a, b)
-    --     if a.name == currentTarget and b.name ~= currentTarget then
-    --         return true
-    --     elseif a.name ~= currentTarget and b.name == currentTarget then
-    --         return false
-    --     end
-    --     -- Prioritize unread messages
-    --     if a.unreadCount > 0 and b.unreadCount == 0 then
-    --         return true
-    --     elseif a.unreadCount == 0 and b.unreadCount > 0 then
-    --         return false
-    --     end
-        
-    --     -- If both have unread or both don't, sort by timestamp
-    --     -- Handle empty timestamps (treat as oldest)
-    --     if a.timestamp == "" and b.timestamp ~= "" then
-    --         return false
-    --     elseif a.timestamp ~= "" and b.timestamp == "" then
-    --         return true
-    --     end
-        
-    --     -- Normal timestamp comparison
-    --     return a.timestamp > b.timestamp
-    -- end
-    
-    -- Render groups in order: pinned groups first, then others, then ungrouped
     local groupOrder = {}
-    
-    -- Add pinned groups first (Favorites)
     for groupName, groupData in pairs(groups) do
         if groupData.pinned then
             table.insert(groupOrder, groupName)
         end
     end
-    
-    -- Add non-pinned groups
     for groupName, groupData in pairs(groups) do
         if not groupData.pinned then
             table.insert(groupOrder, groupName)
         end
     end
-    
-    -- Render each group
     for _, groupName in ipairs(groupOrder) do
         local groupData = groups[groupName]
         local contacts = groupedContacts[groupName]
-        
         if #contacts > 0 then
-            -- Create group header
             local hasUnread = false
             for _, contactData in ipairs(contacts) do
                 if contactData.unreadCount > 0 then
@@ -502,91 +488,54 @@ function Whispr.Contacts:UpdateSidebar()
                 self.sectionStates["group_" .. groupName] = true
             end
             local header = self:CreateSectionHeader(contactList, groupName .. " (" .. #contacts .. ")", offsetY, "group_" .. groupName)
-            
-            -- Color the header text if group has a custom color
             if groupData.color then
                 header.text:SetTextColor(groupData.color[1], groupData.color[2], groupData.color[3], 1)
             end
-            
             offsetY = offsetY - 24
-            
-            -- -- Show contacts if group is expanded
-            -- if not self.sectionStates["group_" .. groupName] == false then
-            --     -- Default to expanded if not set
-            --     if self.sectionStates["group_" .. groupName] == nil then
-            --         self.sectionStates["group_" .. groupName] = true
-            --     end
-            -- end
-            
             if self.sectionStates["group_" .. groupName] then
-                -- Sort contacts by timestamp
                 table.sort(contacts, sortByTimestamp)
-                
-                -- Create contact entries
                 for _, contactData in ipairs(contacts) do
                     local contact = self:CreateContactEntry(contactList, contactData, offsetY)
-                    
-                    -- Highlight if this is the selected contact
                     if contactData.name == currentTarget then
                         contact.selectedHighlight:Show()
                     end
-                    
                     offsetY = offsetY - 30
                 end
             end
         end
     end
-    
-    -- Render ungrouped contacts under "Recent Conversations"
     if #ungroupedContacts > 0 then
-        -- Create "Recent Conversations" header
         local header = self:CreateSectionHeader(contactList, "Recent Conversations", offsetY, "conversations")
         offsetY = offsetY - 24
-
-        -- Only show conversation entries if section is expanded
         if self.sectionStates.conversations then
-            -- Sort by timestamp (most recent first)
             table.sort(ungroupedContacts, sortByTimestamp)
-
-            -- Create contact entries
             for _, contactData in ipairs(ungroupedContacts) do
                 local contact = self:CreateContactEntry(contactList, contactData, offsetY)
-                
-                -- Highlight if this is the selected contact
                 if contactData.name == currentTarget then
                     contact.selectedHighlight:Show()
                 end
-                
                 offsetY = offsetY - 30
             end
         end
     end
-    
-    -- Show "No matches found" only if searching and no results
     if query ~= "" and offsetY == -8 then
         local emptyMessage = contactList:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         emptyMessage:SetPoint("TOPLEFT", 20, offsetY - 10)
         emptyMessage:SetText("No matches found")
         emptyMessage:SetTextColor(0.5, 0.5, 0.5, 1)
         offsetY = offsetY - 25
-    end
-    
-    -- Add some padding at the bottom
-    offsetY = offsetY - 10
-    
-    -- Set the contact list height
+    end    
+    offsetY = offsetY - 10    
     contactList:SetHeight(math.abs(offsetY))
 end
 
 function Whispr.Contacts:ShowGroupContextMenu(groupName)
     if groupName == "Favorites" then
-        return -- No context menu for Favorites
+        return
     end
-
     if not _G["WhisprGroupContextMenuFrame"] then
         CreateFrame("Frame", "WhisprGroupContextMenuFrame", UIParent, "UIDropDownMenuTemplate")
     end
-
     local menu = _G["WhisprGroupContextMenuFrame"]
     local function InitializeMenu(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -665,25 +614,18 @@ end
 
 
 function Whispr.Contacts:ShowContextMenu(contact, contactData)
-    -- Create the dropdown frame if it doesn't exist
     if not _G["WhisprContextMenuFrame"] then
         CreateFrame("Frame", "WhisprContextMenuFrame", UIParent, "UIDropDownMenuTemplate")
     end
-    
     local menu = _G["WhisprContextMenuFrame"]
     local currentGroup = Whispr.History:GetContactGroup(contactData.name)
-    
     local function InitializeMenu(self, level)
         local info = UIDropDownMenu_CreateInfo()
-        
         if level == 1 then
-            -- Title
             info.text = contactData.shortName or contactData.name
             info.isTitle = true
             info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Favorite toggle
+            UIDropDownMenu_AddButton(info, level)            
             info = UIDropDownMenu_CreateInfo()
             info.text = (currentGroup == "Favorites") and "Remove from Favorites" or "Add to Favorites"
             info.notCheckable = true
@@ -691,9 +633,7 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                 Whispr.History:ToggleFavorite(contactData.name)
                 CloseDropDownMenus()
             end
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Remove from current group (if in a group that's not Favorites)
+            UIDropDownMenu_AddButton(info, level)            
             if currentGroup and currentGroup ~= "Favorites" then
                 info = UIDropDownMenu_CreateInfo()
                 info.text = "Remove from " .. currentGroup
@@ -704,9 +644,7 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                     CloseDropDownMenus()
                 end
                 UIDropDownMenu_AddButton(info, level)
-            end
-            
-            -- Add to Group submenu (only show if not already in a non-Favorites group)
+            end            
             if not currentGroup or currentGroup == "Favorites" then
                 info = UIDropDownMenu_CreateInfo()
                 info.text = "Add to Group"
@@ -715,7 +653,6 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                 info.value = "GROUPS"
                 UIDropDownMenu_AddButton(info, level)
             else
-                -- If already in a group, show "Move to Group" instead
                 info = UIDropDownMenu_CreateInfo()
                 info.text = "Move to Group"
                 info.hasArrow = true
@@ -723,8 +660,6 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                 info.value = "GROUPS"
                 UIDropDownMenu_AddButton(info, level)
             end
-            
-            -- Clear History option
             info = UIDropDownMenu_CreateInfo()
             info.text = "Clear Chat History"
             info.notCheckable = true
@@ -755,8 +690,6 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                 CloseDropDownMenus()
             end
             UIDropDownMenu_AddButton(info, level)
-            
-            -- Cancel option
             info = UIDropDownMenu_CreateInfo()
             info.text = "Cancel"
             info.notCheckable = true
@@ -764,11 +697,8 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                 CloseDropDownMenus()
             end
             UIDropDownMenu_AddButton(info, level)
-            
         elseif level == 2 and UIDROPDOWNMENU_MENU_VALUE == "GROUPS" then
-            -- Show all available groups
             local groups = Whispr.History:GetAllGroups()
-            
             for groupName, groupData in pairs(groups) do
                 if groupName ~= "Favorites" and groupName ~= currentGroup then -- Don't show current group or Favorites
                     info = UIDropDownMenu_CreateInfo()
@@ -782,8 +712,6 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                     UIDropDownMenu_AddButton(info, level)
                 end
             end
-            
-            -- Create New Group option
             info = UIDropDownMenu_CreateInfo()
             info.text = "Create New Group..."
             info.notCheckable = true
@@ -794,7 +722,6 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
             UIDropDownMenu_AddButton(info, level)
         end
     end
-    
     UIDropDownMenu_Initialize(menu, InitializeMenu, "MENU")
     ToggleDropDownMenu(1, nil, menu, "cursor", 0, 0)
 end
@@ -823,10 +750,7 @@ function Whispr.Contacts:ShowCreateGroupDialog(playerName)
     StaticPopup_Show("WHISPR_CREATE_GROUP")
 end
 
--- Function to mark a contact as selected (called from Messages module)
 function Whispr.Contacts:SetSelectedContact(contactName)
-    -- This will be called when a contact is selected
-    -- The highlighting is now handled in UpdateSidebar()
     self:UpdateSidebar()
 end
 

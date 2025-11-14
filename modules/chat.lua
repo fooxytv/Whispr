@@ -8,8 +8,6 @@ end
 
 function Whispr.Chat:GetPlayerSuggestions(partial)
     local suggestions = {}
-    
-    -- Get friends list
     local numFriends = C_FriendList.GetNumFriends()
     for i = 1, numFriends do
         local friendInfo = C_FriendList.GetFriendInfoByIndex(i)
@@ -25,8 +23,6 @@ function Whispr.Chat:GetPlayerSuggestions(partial)
             end
         end
     end
-    
-    -- Get guild members if in guild
     if IsInGuild() then
         local numMembers = GetNumGuildMembers()
         for i = 1, numMembers do
@@ -44,8 +40,6 @@ function Whispr.Chat:GetPlayerSuggestions(partial)
             end
         end
     end
-    
-    -- Get recent conversations
     if Whispr.Messages and Whispr.Messages.conversations then
         for playerName in pairs(Whispr.Messages.conversations) do
             local shortName = playerName:match("^[^-]+") or playerName
@@ -59,8 +53,6 @@ function Whispr.Chat:GetPlayerSuggestions(partial)
             end
         end
     end
-    
-    -- Remove duplicates and limit to 8 suggestions
     local seen = {}
     local unique = {}
     for _, suggestion in ipairs(suggestions) do
@@ -88,61 +80,41 @@ function Whispr.Chat:CreateDropdown(parent, nameBox)
     dropdown:SetFrameStrata("FULLSCREEN_DIALOG")
     dropdown:SetFrameLevel(parent:GetFrameLevel() + 10)
     dropdown:Hide()
-    
     dropdown.entries = {}
-    
     function dropdown:UpdateSuggestions(suggestions)
         -- Clear existing entries
         for _, entry in ipairs(self.entries) do
             entry:Hide()
         end
-        
         if #suggestions == 0 then
             self:Hide()
             return
         end
-        
-        -- Create/update entries
         for i, suggestion in ipairs(suggestions) do
             local entry = self.entries[i]
             if not entry then
                 entry = CreateFrame("Button", nil, self)
                 entry:SetSize(296, 24)
                 entry:SetPoint("TOPLEFT", 2, -2 - (i-1) * 24)
-                
-                -- Background
                 entry.bg = entry:CreateTexture(nil, "BACKGROUND")
                 entry.bg:SetAllPoints()
                 entry.bg:SetTexture("Interface\\Buttons\\WHITE8x8")
                 entry.bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
-                
-                -- Highlight
                 entry.highlight = entry:CreateTexture(nil, "HIGHLIGHT")
                 entry.highlight:SetAllPoints()
                 entry.highlight:SetTexture("Interface\\Buttons\\WHITE8x8")
                 entry.highlight:SetVertexColor(0.3, 0.5, 0.8, 0.6)
-                
-                -- Name text
                 entry.nameText = entry:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 entry.nameText:SetPoint("LEFT", 8, 0)
-                
-                -- Status icon
                 entry.statusIcon = entry:CreateTexture(nil, "OVERLAY")
                 entry.statusIcon:SetSize(12, 12)
                 entry.statusIcon:SetPoint("RIGHT", -8, 0)
-                
-                -- Type text
                 entry.typeText = entry:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
                 entry.typeText:SetPoint("RIGHT", entry.statusIcon, "LEFT", -4, 0)
-                
                 self.entries[i] = entry
             end
-            
-            -- Update entry data
             entry.suggestion = suggestion
             entry.nameText:SetText(suggestion.name)
-            
-            -- Set type and color
             if suggestion.type == "friend" then
                 entry.typeText:SetText("Friend")
                 entry.typeText:SetTextColor(0.5, 1, 0.5)
@@ -153,8 +125,6 @@ function Whispr.Chat:CreateDropdown(parent, nameBox)
                 entry.typeText:SetText("Recent")
                 entry.typeText:SetTextColor(0.7, 0.7, 0.7)
             end
-            
-            -- Set online status icon
             if suggestion.online == true then
                 entry.statusIcon:SetTexture("Interface\\FriendsFrame\\StatusIcon-Online")
             elseif suggestion.online == false then
@@ -162,24 +132,18 @@ function Whispr.Chat:CreateDropdown(parent, nameBox)
             else
                 entry.statusIcon:SetTexture(nil)
             end
-            
-            -- Click handler
             entry:SetScript("OnClick", function()
                 nameBox:SetText(suggestion.name)
                 nameBox:SetCursorPosition(string.len(suggestion.name))
                 self:Hide()
                 nameBox:SetFocus()
             end)
-            
             entry:Show()
         end
-        
-        -- Adjust dropdown height
         local height = #suggestions * 24 + 4
         self:SetHeight(height)
         self:Show()
     end
-    
     return dropdown
 end
 
@@ -189,9 +153,7 @@ function Whispr.Chat:CreateNewConversationPrompt()
         Whispr.Chat.newConversationFrame.nameBox:SetFocus()
         return
     end
-
     local parent = Whispr.Chat.frame or UIParent
-
     local prompt = CreateFrame("Frame", "WhisprNewConversationPrompt", parent, "BackdropTemplate")
     prompt:SetSize(280, 120)
     prompt:SetPoint("CENTER", parent, "CENTER")
@@ -208,13 +170,9 @@ function Whispr.Chat:CreateNewConversationPrompt()
     prompt:RegisterForDrag("LeftButton")
     prompt:SetScript("OnDragStart", prompt.StartMoving)
     prompt:SetScript("OnDragStop", prompt.StopMovingOrSizing)
-
-    -- Title
     local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -12)
     title:SetText("New Conversation")
-
-    -- Input box
     local nameBox = CreateFrame("EditBox", nil, prompt, "InputBoxTemplate")
     nameBox:SetSize(200, 30)
     nameBox:SetPoint("TOP", title, "BOTTOM", 0, -10)
@@ -223,18 +181,14 @@ function Whispr.Chat:CreateNewConversationPrompt()
     nameBox:SetText("")
     nameBox:SetFocus()
     prompt.nameBox = nameBox
-
-    -- Buttons
     local startButton = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
     startButton:SetSize(80, 24)
     startButton:SetPoint("BOTTOMLEFT", 20, 15)
     startButton:SetText("Start")
-
     local cancelButton = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
     cancelButton:SetSize(80, 24)
     cancelButton:SetPoint("BOTTOMRIGHT", -20, 15)
     cancelButton:SetText("Cancel")
-
     startButton:SetScript("OnClick", function()
         local targetName = nameBox:GetText():gsub("%s+", "")
         if targetName ~= "" then
@@ -247,17 +201,25 @@ function Whispr.Chat:CreateNewConversationPrompt()
             UIErrorsFrame:AddMessage("Please enter a player name.", 1, 0.2, 0.2)
         end
     end)
-
     cancelButton:SetScript("OnClick", function()
         prompt:Hide()
     end)
-
-    -- Enter key support
     nameBox:SetScript("OnEnterPressed", function()
         startButton:Click()
     end)
-
     Whispr.Chat.newConversationFrame = prompt
+end
+
+function Whispr.Chat:CreateHeader(frame, sidebarFrame)
+    local headerBar = CreateFrame("Frame", nil, frame, "InsetFrameTemplate3")
+    headerBar:SetHeight(36)
+    headerBar:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 2, 0)
+    headerBar:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+    headerBar.noConvoText = headerBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    headerBar.noConvoText:SetPoint("CENTER", headerBar, "CENTER", 0, 0)
+    headerBar.noConvoText:SetText("No conversation selected")
+    headerBar.noConvoText:SetTextColor(0.5, 0.5, 0.5, 1)
+    return headerBar
 end
 
 function Whispr.Chat:Create()
@@ -283,6 +245,7 @@ function Whispr.Chat:Create()
     sidebarFrame:SetPoint("TOPLEFT", 4, -28)
     sidebarFrame:SetPoint("BOTTOMLEFT", 4, 4)
     sidebarFrame:SetWidth(200)
+    frame.headerBar = self:CreateHeader(frame, sidebarFrame)
     local newConversationButton = CreateFrame("Button", nil, sidebarFrame, "BackdropTemplate")
     newConversationButton:SetSize(30, 30)
     newConversationButton:SetPoint("TOPLEFT", 148, -8)
@@ -340,21 +303,23 @@ function Whispr.Chat:Create()
     contactScroll:SetScrollChild(contactList)
     Whispr.Chat.contactList = contactList
     chatArea = CreateFrame("Frame", nil, frame, "InsetFrameTemplate3")
-    chatArea:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 2, 0)
+    chatArea:SetPoint("TOPLEFT", frame.headerBar, "BOTTOMLEFT", 0, -2)
     chatArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 44)
-    chatArea.titleBar = CreateFrame("Frame", nil, chatArea)
-    chatArea.titleBar:SetPoint("TOPLEFT", 0, 0)
-    chatArea.titleBar:SetPoint("TOPRIGHT", 0, 0)
-    chatArea.titleBar:SetHeight(24)
-    chatArea.titleText = chatArea.titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    chatArea.titleText:SetPoint("LEFT", 10, 0)
-    chatArea.titleText:SetText("No conversation selected")
+    -- chatArea:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 2, 0)
+    -- chatArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 44)
+    -- chatArea.titleBar = CreateFrame("Frame", nil, chatArea)
+    -- chatArea.titleBar:SetPoint("TOPLEFT", 0, 0)
+    -- chatArea.titleBar:SetPoint("TOPRIGHT", 0, 0)
+    -- chatArea.titleBar:SetHeight(24)
+    -- chatArea.titleText = chatArea.titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    -- chatArea.titleText:SetPoint("LEFT", 10, 0)
+    -- chatArea.titleText:SetText("No conversation selected")
     chatArea.scroll = CreateFrame("ScrollingMessageFrame", nil, chatArea)
     chatArea.scroll.fontSize = Whispr.Chat.savedFontSize or 13
     chatArea.scroll.minFontSize = 8
     chatArea.scroll.maxFontSize = 24
-    chatArea.scroll:SetPoint("TOPLEFT", 10, -30)
-    chatArea.scroll:SetPoint("BOTTOMRIGHT", -30, 10)
+    chatArea.scroll:SetPoint("TOPLEFT", 10, -10)
+    chatArea.scroll:SetPoint("BOTTOMRIGHT", -30, 20)
     chatArea.scroll:SetFont("Fonts\\FRIZQT__.TTF", chatArea.scroll.fontSize, "")
     chatArea.scroll:SetShadowColor(0, 0, 0, 0.8)
     chatArea.scroll:SetShadowOffset(1, -1)
@@ -363,7 +328,7 @@ function Whispr.Chat:Create()
     chatArea.scroll:SetJustifyH("LEFT")
     chatArea.scroll:SetIndentedWordWrap(true)
     chatArea.scroll:SetHyperlinksEnabled(true)
-    chatArea.scroll:SetSpacing(4)
+    chatArea.scroll:SetSpacing(6)
     chatArea.scroll:SetScript("OnHyperlinkEnter", function(_, link)
         GameTooltip:SetOwner(chatArea.scroll, "ANCHOR_CURSOR")
         GameTooltip:SetHyperlink(link)
@@ -515,11 +480,8 @@ function Whispr.Chat:Create()
     Whispr.Contacts:UpdateSidebar()
 end
 
--- Add function to highlight selected contact
 function Whispr.Chat:HighlightSelectedContact(contactName)
     if not self.contactList then return end
-    
-    -- Remove highlight from all contacts
     for i = 1, self.contactList:GetNumChildren() do
         local child = select(i, self.contactList:GetChildren())
         if child and child.contactName then
@@ -531,12 +493,9 @@ function Whispr.Chat:HighlightSelectedContact(contactName)
             end
         end
     end
-    
-    -- Add highlight to selected contact
     for i = 1, self.contactList:GetNumChildren() do
         local child = select(i, self.contactList:GetChildren())
         if child and child.contactName == contactName then
-            -- Create selected background if it doesn't exist
             if not child.selectedBg then
                 child.selectedBg = child:CreateTexture(nil, "BACKGROUND")
                 child.selectedBg:SetAllPoints()
@@ -544,8 +503,6 @@ function Whispr.Chat:HighlightSelectedContact(contactName)
                 child.selectedBg:SetVertexColor(0.2, 0.4, 0.8, 0.6)
             end
             child.selectedBg:Show()
-            
-            -- Make text brighter
             if child.nameText then
                 child.nameText:SetTextColor(1, 1, 0.8)
             end

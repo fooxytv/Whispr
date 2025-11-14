@@ -17,9 +17,7 @@ function Whispr:CreateDraggableFrame(name, width, height)
 end
 
 function Whispr:AddAutoTransparency(frame, options)
-    print("AddAutoTransparency called for frame:", frame:GetName())
-    options = options or {}
-    
+    options = options or {}    
     frame.transparencyEnabled = true
     frame.isFocused = false
     frame.normalAlpha = options.normalAlpha or 1.0
@@ -28,10 +26,8 @@ function Whispr:AddAutoTransparency(frame, options)
     frame.currentAlpha = frame.normalAlpha
     frame.targetAlpha = frame.normalAlpha
     frame.checkMovement = options.checkMovement ~= false
-    
     frame.UpdateTransparency = function(self, elapsed)
         if not self.transparencyEnabled then return end
-        
         local shouldFade = false
         if self.checkMovement then
             local isMoving = GetUnitSpeed("player") > 0
@@ -39,7 +35,6 @@ function Whispr:AddAutoTransparency(frame, options)
         else
             shouldFade = not self.isFocused
         end
-        
         self.targetAlpha = shouldFade and self.unfocusedAlpha or self.normalAlpha
         
         if self.currentAlpha ~= self.targetAlpha then
@@ -51,23 +46,16 @@ function Whispr:AddAutoTransparency(frame, options)
             else
                 self.currentAlpha = self.currentAlpha + change
             end
-            
             self:SetAlpha(self.currentAlpha)
         end
-    end
-    
-    -- Mouse handlers
+    end    
     frame:HookScript("OnEnter", function(self)
         self.isFocused = true
     end)
-    
     frame:HookScript("OnLeave", function(self)
         self.isFocused = false
     end)
-    
     frame:HookScript("OnMouseDown", function(self)
         self.isFocused = true
-    end)
-    
-    print("Transparency setup complete. Call frame.UpdateTransparency(frame, elapsed) in your OnUpdate")
+    end)    
 end

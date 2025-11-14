@@ -1,7 +1,6 @@
 Whispr.History = {}
 
 function Whispr.History:OnInit()
-
     if not WhisprDb then
         WhisprDb = {
             conversations = {},
@@ -21,13 +20,14 @@ function Whispr.History:OnInit()
             WhisprDb.contactGroups = {}
         end
     end
-
+    if not WhisprDb.playerClasses then
+        WhisprDb.playerClasses = {}
+    end
     if WhisprDb.conversations then
         Whispr.Messages.conversations = WhisprDb.conversations
-
-        for name, message in pairs(WhisprDb.conversations) do
-            print(" - Loaded conversation with", name, ":", #message, "messages") -- Debug output
-        end
+        -- for name, message in pairs(WhisprDb.conversations) do
+        --     print(" - Loaded conversation with", name, ":", #message, "messages") -- Debug output
+        -- end
     end
     if WhisprDb.settings and WhisprDb.settings.fontSize then
         Whispr.Chat.savedFontSize = WhisprDb.settings.fontSize
