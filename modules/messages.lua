@@ -4,8 +4,15 @@ Whispr.Messages.conversations = {}
 Whispr.Messages.target = nil
 
 function Whispr.Messages:OnInit()
-    Whispr:RegisterEvent("CHAT_MSG_WHISPER")
-    Whispr:RegisterEvent("CHAT_MSG_WHISPER_INFORM") -- For sent messages
+    if not Whispr.eventFrame then
+        Whispr.eventFrame = CreateFrame("Frame")
+    end
+
+    Whispr.eventFrame:RegisterEvent("CHAT_MSG_WHISPER")
+    Whispr.eventFrame:RegisterEvent("CHAT_MSG_WHISPER_INFORM")
+    Whispr.eventFrame:SetScript("OnEvent", function(_, event, ...)
+        self:OnEvent(event, ...)
+    end)
 end
 
 local function GetFullName(name)
@@ -38,6 +45,9 @@ function Whispr.Messages:LoadConversation(playerName)
     if not chatArea or not chatArea.scroll then return end
     chatArea.scroll:Clear()
     local messages = self.conversations[playerName] or {}
+    local class = Whispr.Contacts:GetPlayerClassInfo(playerName)
+    local r, g, b = Whispr.Contacts:GetClassColor(class)
+    local classColorHex = string.format("%02x%02x%02x", r*255, g*255, b*255)
     for _, msg in ipairs(messages) do
         if msg.date and msg.date ~= lastDate then
             chatArea.scroll:AddMessage(" ")
@@ -59,10 +69,11 @@ function Whispr.Messages:LoadConversation(playerName)
                 senderName = msg.sender:match("^[^-]+") or msg.sender
                 senderFull = msg.sender:find("-") and msg.sender or GetFullName(msg.sender)
             end
-            line = string.format("|cff666666%s|r |cffffcc00|Hplayer:%s|h%s|h|r|cffffffff: %s|r", 
-                timestamp, 
-                senderFull, 
-                senderName, 
+            line = string.format("|cff666666%s|r |cff%s|Hplayer:%s|h%s|h|r|cffffffff: %s|r",
+                timestamp,
+                classColorHex,
+                senderFull,
+                senderName,
                 text)
         end
         if msg.isQueued then
@@ -79,9 +90,31 @@ function Whispr.Messages:SaveMessage()
     end
 end
 
-function Whispr.Messages:OnEvent(event, msg, sender)
+function Whispr.Messages:OnEvent(event, ...)
     if event == "CHAT_MSG_WHISPER" then
+        local msg, sender, _, _, _, _, _, _, _, _, _, guid = ...
         sender = GetFullName(sender)
+        if guid then
+            local _, class, _, race, bodyType = GetPlayerInfoByGUID(guid)
+            if class then
+                if not WhisprDb.playerClasses then
+                    WhisprDb.playerClasses = {}
+                end
+                WhisprDb.playerClasses[sender] = class
+            end
+            if race then
+                if not WhisprDb.playerRaces then
+                    WhisprDb.playerRaces = {}
+                end
+                WhisprDb.playerRaces[sender] = race
+            end
+            if bodyType then
+                if not WhisprDb.playerBodyTypes then
+                    WhisprDb.playerBodyTypes = {}
+                end
+                WhisprDb.playerBodyTypes[sender] = bodyType
+            end
+        end
         if not self.conversations[sender] then
             self.conversations[sender] = {}
         end
@@ -110,7 +143,29 @@ function Whispr.Messages:OnEvent(event, msg, sender)
             self:LoadConversation(sender)
         end
     elseif event == "CHAT_MSG_WHISPER_INFORM" then
-        local recipient = GetFullName(sender) 
+        local msg, sender, _, _, _, _, _, _, _, _, _, guid = ...
+        local recipient = GetFullName(sender)
+        if guid then
+            local _, class, _, race, bodyType = GetPlayerInfoByGUID(guid)
+            if class then
+                if not WhisprDb.playerClasses then
+                    WhisprDb.playerClasses = {}
+                end
+                WhisprDb.playerClasses[recipient] = class
+            end
+            if race then
+                if not WhisprDb.playerRaces then
+                    WhisprDb.playerRaces = {}
+                end
+                WhisprDb.playerRaces[recipient] = race
+            end
+            if bodyType then
+                if not WhisprDb.playerBodyTypes then
+                    WhisprDb.playerBodyTypes = {}
+                end
+                WhisprDb.playerBodyTypes[recipient] = bodyType
+            end
+        end
         if not self.conversations[recipient] then
             self.conversations[recipient] = {}
         end
@@ -136,7 +191,13 @@ function Whispr.Messages:SetTarget(playerName)
     local frame = Whispr.Chat:GetFrame()
     if frame and frame.headerBar then
         local shortName = playerName:match("^[^-]+") or playerName
+        local class = Whispr.Contacts:GetPlayerClassInfo(playerName)
+        local r, g, b = Whispr.Contacts:GetClassColor(class)
+        -- if WhisprDb.playerClasses then
+        --     print("Stored class:", WhisprDb.playerClasses[playerName])
+        -- end
         frame.headerBar.noConvoText:SetText("Chat with " .. shortName)
+        frame.headerBar.noConvoText:SetTextColor(r, g, b, 1)
         frame.headerBar.noConvoText:Show()
     end
     -- if Whispr.Chat:GetChatArea() then

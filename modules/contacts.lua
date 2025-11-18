@@ -21,35 +21,66 @@ function Whispr.Contacts:OnEvent(event, ...)
 end
 
 function Whispr.Contacts:GetRacePortrait(playerName)
-    -- You can expand this to detect actual race if you have that data
-    -- For now, we'll use a variety of portraits based on name hash
+    local race = WhisprDb.playerRaces and WhisprDb.playerRaces[playerName]
+    local bodyType = WhisprDb.playerBodyTypes and WhisprDb.playerBodyTypes[playerName]
+    local bodyTypeString = (bodyType == 3) and "Female" or "Male"
+    local raceFallbacks = {
+        ["Earthen"] = "Dwarf",
+        ["EarthenDwarf"] = "Dwarf"
+    }
+
+    if race and raceFallbacks[race] then
+        race = raceFallbacks[race]
+    end
+    
+    local racePortraits = {
+        ["Human"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Human", bodyTypeString),
+        ["NightElf"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-NightElf", bodyTypeString),
+        ["Dwarf"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Dwarf", bodyTypeString),
+        ["Orc"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Orc", bodyTypeString),
+        ["Troll"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Troll", bodyTypeString),
+        ["Scourge"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Undead", bodyTypeString),
+        ["Gnome"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Gnome", bodyTypeString),
+        ["Tauren"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Tauren", bodyTypeString),
+        ["Draenei"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Draenei", bodyTypeString),
+        ["BloodElf"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-BloodElf", bodyTypeString),
+        ["Goblin"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Goblin", bodyTypeString),
+        ["Worgen"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Worgen", bodyTypeString),
+        ["Pandaren"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Pandaren", bodyTypeString),
+        ["ZandalariTroll"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-ZandalariTroll", bodyTypeString),
+        ["KulTiran"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-KulTiran", bodyTypeString),
+        ["Vulpera"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Vulpera", bodyTypeString),
+        ["MagharOrc"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-MagharOrc", bodyTypeString),
+        ["Nightborne"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Nightborne", bodyTypeString),
+        ["HighmountainTauren"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-HighmountainTauren", bodyTypeString),
+        ["LightforgedDraenei"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-LightforgedDraenei", bodyTypeString),
+        ["DarkIronDwarf"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-DarkIronDwarf", bodyTypeString),
+        ["VoidElf"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-VoidElf", bodyTypeString),
+        ["Mechagnome"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Mechagnome", bodyTypeString),
+        ["Dracthyr"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Dracthyr", bodyTypeString),
+        ["Earthen"] = string.format("Interface\\CHARACTERFRAME\\TemporaryPortrait-%s-Earthen", bodyTypeString),
+    }
+
+    if race and racePortraits[race] then
+        return racePortraits[race]
+    end
+
     local portraits = {
         "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-Human",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Human", 
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-NightElf",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-NightElf",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-Dwarf",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Dwarf",
+        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Human",
         "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-Orc",
         "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Orc",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-Troll",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Troll",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Male-Undead",
-        "Interface\\CHARACTERFRAME\\TemporaryPortrait-Female-Undead"
     }
-    
-    -- Simple hash to assign consistent portraits
     local hash = 0
     for i = 1, string.len(playerName) do
         hash = hash + string.byte(playerName, i)
     end
-    
     return portraits[(hash % #portraits) + 1]
 end
 
 function Whispr.Contacts:GetPlayerClassInfo(playerName)
     local shortName = playerName:match("^[^-]+") or playerName
-    if WhisprDb.PlayerClasses and WhisprDb.playerClasses[playerName] then
+    if WhisprDb.playerClasses and WhisprDb.playerClasses[playerName] then
         return WhisprDb.playerClasses[playerName], nil
     end
     if UnitExists(shortName) then
@@ -106,7 +137,7 @@ end
 
 function Whispr.Contacts:GetClassColor(className)
     if not className then
-        return 1, 1, 1
+        return 0.8, 0.8, 0.8
     end
     local classColors = {
         ["WARRIOR"] = {0.78, 0.61, 0.43},
@@ -290,7 +321,9 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
     contact.nameText:SetPoint("RIGHT", -30, 0)
     contact.nameText:SetJustifyH("LEFT")
     contact.nameText:SetText(contactData.shortName or contactData.name)
-    contact.nameText:SetTextColor(1, 1, 1, 1)
+    local class = self:GetPlayerClassInfo(contactData.name)
+    local r, g, b = self:GetClassColor(class)
+    contact.nameText:SetTextColor(r, g, b, 1)
     if contactData.unreadCount and contactData.unreadCount > 0 then
         contact.unreadGlow = contact:CreateTexture(nil, "BACKGROUND")
         contact.unreadGlow:SetAllPoints()
@@ -674,9 +707,14 @@ function Whispr.Contacts:ShowContextMenu(contact, contactData)
                         end
                         if Whispr.Messages.target == contactData.name then
                             Whispr.Messages.target = nil
+                            local frame = Whispr.Chat:GetFrame()
+                            if frame and frame.headerBar then
+                                frame.headerBar.noConvoText:SetText("No conversation selected")
+                                frame.headerBar.noConvoText:SetTextColor(0.5, 0.5, 0.5, 1)
+                                frame.headerBar.noConvoText:Show()
+                            end
                             local chatArea = Whispr.Chat:GetChatArea()
                             if chatArea then
-                                chatArea.titleText:SetText("No conversation selected")
                                 chatArea.scroll:Clear()
                             end
                         end

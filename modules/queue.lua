@@ -95,7 +95,7 @@ function Whispr.Queue:ProcessQueue()
         if self:IsPlayerOnline(playerName) and #messages > 0 then
             print("Whispr Queue:", playerName, "is online. Sending", #messages, "queued message(s)...")
             for _, msg in ipairs(messages) do
-                SendChatMessage(msg.text, "WHISPER", nil, playerName)
+                C_ChatInfo.SendChatMessage(msg.text, "WHISPER", nil, playerName)
                 C_Timer.After(0.5, function()
                     if Whispr.Messages.conversations[playerName] then
                         table.insert(Whispr.Messages.conversations[playerName], {

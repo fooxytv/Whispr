@@ -413,7 +413,7 @@ function Whispr.Chat:Create()
                 }
                 StaticPopup_Show("WHISPR_QUEUE_OFFLINE")
             else
-                SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
+                C_ChatInfo.SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
             end
         end
         self:SetText("")
