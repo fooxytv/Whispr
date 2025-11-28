@@ -365,7 +365,7 @@ function Whispr.Contacts:CreateContactEntry(parent, contactData, yOffset)
         contact.pulseTime = 0
         contact:SetScript("OnUpdate", function(self, elapsed)
             self.pulseTime = self.pulseTime + elapsed
-            local alpha = 0.15 + (math.sin(self.pulseTime * 3) * 0.15)
+            local alpha = 0.35 + (math.sin(self.pulseTime * 3) * 0.15)
             self.unreadGlow:SetAlpha(alpha)
         end)
     else

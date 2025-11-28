@@ -193,16 +193,10 @@ function Whispr.Messages:SetTarget(playerName)
         local shortName = playerName:match("^[^-]+") or playerName
         local class = Whispr.Contacts:GetPlayerClassInfo(playerName)
         local r, g, b = Whispr.Contacts:GetClassColor(class)
-        -- if WhisprDb.playerClasses then
-        --     print("Stored class:", WhisprDb.playerClasses[playerName])
-        -- end
         frame.headerBar.noConvoText:SetText("Chat with " .. shortName)
         frame.headerBar.noConvoText:SetTextColor(r, g, b, 1)
         frame.headerBar.noConvoText:Show()
     end
-    -- if Whispr.Chat:GetChatArea() then
-    --     Whispr.Chat:GetChatArea().titleText:SetText("Chat with " .. (playerName:match("^[^-]+") or playerName))
-    -- end
     if self.conversations[playerName] then
         for _, message in ipairs(self.conversations[playerName]) do
             message.unread = false

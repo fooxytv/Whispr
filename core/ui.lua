@@ -36,11 +36,9 @@ function Whispr:AddAutoTransparency(frame, options)
             shouldFade = not self.isFocused
         end
         self.targetAlpha = shouldFade and self.unfocusedAlpha or self.normalAlpha
-        
         if self.currentAlpha ~= self.targetAlpha then
             local diff = self.targetAlpha - self.currentAlpha
             local change = diff * self.fadeSpeed * elapsed
-            
             if math.abs(diff) < 0.01 then
                 self.currentAlpha = self.targetAlpha
             else
@@ -48,7 +46,7 @@ function Whispr:AddAutoTransparency(frame, options)
             end
             self:SetAlpha(self.currentAlpha)
         end
-    end    
+    end
     frame:HookScript("OnEnter", function(self)
         self.isFocused = true
     end)
@@ -57,5 +55,5 @@ function Whispr:AddAutoTransparency(frame, options)
     end)
     frame:HookScript("OnMouseDown", function(self)
         self.isFocused = true
-    end)    
+    end)
 end

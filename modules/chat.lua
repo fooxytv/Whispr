@@ -234,6 +234,9 @@ function Whispr.Chat:Create()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetTitle("Whispr Chat")
+    if frame.PortraitContainer and frame.PortraitContainer.portrait then
+        SetPortraitTexture(frame.PortraitContainer.portrait, "player")
+    end
     table.insert(UISpecialFrames, "WhisprChatWindow")
     Whispr:AddAutoTransparency(frame, {
         normalAlpha = 1.0,
@@ -305,15 +308,6 @@ function Whispr.Chat:Create()
     chatArea = CreateFrame("Frame", nil, frame, "InsetFrameTemplate3")
     chatArea:SetPoint("TOPLEFT", frame.headerBar, "BOTTOMLEFT", 0, -2)
     chatArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 44)
-    -- chatArea:SetPoint("TOPLEFT", sidebarFrame, "TOPRIGHT", 2, 0)
-    -- chatArea:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 44)
-    -- chatArea.titleBar = CreateFrame("Frame", nil, chatArea)
-    -- chatArea.titleBar:SetPoint("TOPLEFT", 0, 0)
-    -- chatArea.titleBar:SetPoint("TOPRIGHT", 0, 0)
-    -- chatArea.titleBar:SetHeight(24)
-    -- chatArea.titleText = chatArea.titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    -- chatArea.titleText:SetPoint("LEFT", 10, 0)
-    -- chatArea.titleText:SetText("No conversation selected")
     chatArea.scroll = CreateFrame("ScrollingMessageFrame", nil, chatArea)
     chatArea.scroll.fontSize = Whispr.Chat.savedFontSize or 13
     chatArea.scroll.minFontSize = 8
@@ -375,14 +369,15 @@ function Whispr.Chat:Create()
     inputBox:SetMaxLetters(255)
     inputBox:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 220, 10)
     local charCount = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    charCount:SetPoint("LEFT", inputBox, "RIGHT", 8, 0)
+    charCount:SetPoint("LEFT", inputBox, "RIGHT", 67, 0)
     charCount:SetText("0/255")
-    inputBox:SetScript("OnTextChanged", function(self)
-        local len = self:GetNumLetters()
-        charCount:SetText(len .. "/255")
-    end)
-    inputBox:SetScript("OnEnterPressed", function(self)
-        local text = self:GetText()
+    charCount:SetTextColor(0.6, 0.6, 0.6)
+    local sendButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    sendButton:SetSize(60, 24)
+    sendButton:SetPoint("LEFT", inputBox, "RIGHT", 4, 0)
+    sendButton:SetText("Send")
+    local function SendMessage()
+        local text = inputBox:GetText()
         if Whispr.Messages.target and text ~= "" then
             if Whispr.Queue and not Whispr.Queue:IsPlayerOnline(Whispr.Messages.target) then
                 StaticPopupDialogs["WHISPR_QUEUE_OFFLINE"] = {
@@ -397,9 +392,10 @@ function Whispr.Chat:Create()
 
                         table.insert(Whispr.Messages.conversations[Whispr.Messages.target], {
                             sender = UnitName("player"),
-                            text = text .. "",
+                            text = text,
                             fromPlayer = true,
                             timestamp = date("%H:%M"),
+                            date = date("%Y-%m-%d"),
                             isQueued = true
                         })
 
@@ -416,9 +412,69 @@ function Whispr.Chat:Create()
                 C_ChatInfo.SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
             end
         end
-        self:SetText("")
-        self:ClearFocus()
+        inputBox:SetText("")
+        inputBox:ClearFocus()
+    end
+    sendButton:SetScript("OnClick", function()
+        SendMessage()
     end)
+    sendButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Send Message", 1, 1, 1)
+        GameTooltip:AddLine("Click to send the message typed above", 1, 0.85, 0)
+        GameTooltip:Show()
+    end)
+    charCount:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Character Count", 1, 1, 1)
+        GameTooltip:AddLine("Shows the number of characters.", 1, 0.85, 0)
+        GameTooltip:Show()
+    end)
+    inputBox:SetScript("OnEnterPressed", function(self)
+        SendMessage()
+    end)
+    inputBox:SetScript("OnTextChanged", function(self)
+        local len = self:GetNumLetters()
+        charCount:SetText(len .. "/255")
+    end)
+    -- inputBox:SetScript("OnEnterPressed", function(self)
+    --     local text = self:GetText()
+    --     if Whispr.Messages.target and text ~= "" then
+    --         if Whispr.Queue and not Whispr.Queue:IsPlayerOnline(Whispr.Messages.target) then
+    --             StaticPopupDialogs["WHISPR_QUEUE_OFFLINE"] = {
+    --                 text = Whispr.Messages.target:match("^[^-]+") .. " is offline. Queue this message to send when they come online?",
+    --                 button1 = "Queue",
+    --                 button2 = "Cancel",
+    --                 OnAccept = function()
+    --                     Whispr.Queue:QueueMessage(Whispr.Messages.target, text)
+    --                     if not Whispr.Messages.conversations[Whispr.Messages.target] then
+    --                         Whispr.Messages.conversations[Whispr.Messages.target] = {}
+    --                     end
+
+    --                     table.insert(Whispr.Messages.conversations[Whispr.Messages.target], {
+    --                         sender = UnitName("player"),
+    --                         text = text .. "",
+    --                         fromPlayer = true,
+    --                         timestamp = date("%H:%M"),
+    --                         isQueued = true
+    --                     })
+
+    --                     Whispr.Messages:SaveMessage()
+    --                     Whispr.Messages:LoadConversation(Whispr.Messages.target)
+    --                 end,
+    --                 timeout = 0,
+    --                 whileDead = true,
+    --                 hideOnEscape = true,
+    --                 preferredIndex = 3,
+    --             }
+    --             StaticPopup_Show("WHISPR_QUEUE_OFFLINE")
+    --         else
+    --             C_ChatInfo.SendChatMessage(text, "WHISPER", nil, Whispr.Messages.target)
+    --         end
+    --     end
+    --     self:SetText("")
+    --     self:ClearFocus()
+    -- end)
     searchBox:SetScript("OnEditFocusGained", function(self)
         if self:GetText() == "Search..." then
             self:SetText("")
@@ -477,6 +533,16 @@ function Whispr.Chat:Create()
         end
     end
     frame:SetScript("OnUpdate", OnUpdate)
+    frame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    local existingOnEvent = frame:GetScript("OnEvent")
+    frame:SetScript("OnEvent", function(self,event, unit)
+        if existingOnEvent then
+            existingOnEvent(self, event, unit)
+        end
+        if event == "UNIT_PORTRAIT_UPDATE" and unit == "player" then
+            SetPortraitTexture(self.PortraitContainer.portrait, "player")
+        end
+    end)
     Whispr.Contacts:UpdateSidebar()
 end
 
